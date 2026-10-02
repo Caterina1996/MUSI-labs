@@ -103,6 +103,7 @@ def _(np, os):
         return dict(
             odom=_od, meas=_me, gt=_gt, landmarks=_landmarks, x0=_x0, t0=_t0,
             events=_ev, n_robot_meas=_n_robot, dataset=dataset, robot=robot,
+            duration_s=duration_s,
         )
 
     def gt_at(gt, t):
@@ -264,12 +265,23 @@ def _(np, run):
 
 
 @app.cell(hide_code=True)
-def _(f_gt, f_odom, mo):
-    mo.md(
-        "⏳ **CHECK:** not implemented yet."
-        if f_odom is None or f_gt is None
-        else f"✅ **CHECK:** odometry ≈ {f_odom:.1f} Hz · ground truth ≈ {f_gt:.1f} Hz. Note that the two streams are **not** synchronised."
-    )
+def _(f_gt, f_odom, mo, np, run):
+    # Validate values independently; merely displaying them is not a CHECK.
+    _ref_odom = 1.0 / np.mean(np.diff(run["odom"][:, 0]))
+    _ref_gt = 1.0 / np.mean(np.diff(run["gt"][:, 0]))
+    if f_odom is None or f_gt is None:
+        _msg = "⏳ **CHECK:** not implemented yet."
+    else:
+        try:
+            _ok = (np.isfinite(f_odom) and np.isfinite(f_gt)
+                   and np.isclose(f_odom, _ref_odom, rtol=0.01)
+                   and np.isclose(f_gt, _ref_gt, rtol=0.01))
+            _msg = (f"{'✅' if _ok else '❌'} **CHECK:** "
+                    f"odometry = {f_odom:.2f} Hz · ground truth = {f_gt:.2f} Hz. "
+                    "The two streams are **not** synchronised.")
+        except (TypeError, ValueError):
+            _msg = "❌ **CHECK:** return two numerical frequencies in Hz."
+    mo.md(_msg)
     return
 
 
@@ -316,8 +328,13 @@ def _(mo):
     $$
 
     ### 🛠 TODO 2
-    Implement the three functions. `xt` is `np.array([x, y, theta])`; return a **new** array with $\theta$ wrapped to $[-\pi,\pi)$. 
-    For $|\omega|<10^{-6}$ the exact model must fall back to a straight line.
+    Implement the three functions. The pose is `pose = np.array([x, y, theta])` (m, m, rad); the controls `v` (m/s) and `w` (rad/s) are constant during `dt` (s).
+
+    - `wrap_angle(a)`: map an angle, or an array of angles, to $[-\pi,\pi)$. Example: $3\pi/2 \to -\pi/2$.
+    - `motion_euler(pose, v, w, dt)`: next pose with the Euler equations above.
+    - `motion_exact(pose, v, w, dt)`: next pose with the circular-arc equations above. If $|\omega| < 10^{-6}$ the radius $v/\omega$ is undefined: use straight-line motion instead.
+
+    Both motion functions must return a **new** array (do not modify `pose`) with $\theta$ wrapped by `wrap_angle`. You will reuse the three functions in L2, L3 and E1.
     """
     )
     return
@@ -328,10 +345,10 @@ def _(np):
     def wrap_angle(a):
         return None
 
-    def motion_euler(xt, v, w, dt):
+    def motion_euler(pose, v, w, dt):
         return None
 
-    def motion_exact(xt, v, w, dt):
+    def motion_exact(pose, v, w, dt):
         return None
 
     return motion_euler, motion_exact, wrap_angle
@@ -349,7 +366,12 @@ def _(mo, motion_euler, motion_exact, np, wrap_angle):
             _msgs.append(("Euler, quarter turn", np.allclose(motion_euler(_x0, 1.0, np.pi / 2, 1.0), [1, 0, np.pi / 2])))
             _msgs.append(("exact, straight line (ω = 0)", np.allclose(motion_exact(_x0, 1.0, 0.0, 1.0), [1, 0, 0])))
             _msgs.append(("exact, quarter circle", np.allclose(motion_exact(_x0, 1.0, np.pi / 2, 1.0), [2 / np.pi, 2 / np.pi, np.pi / 2])))
-            _msgs.append(("θ wrapped", abs(motion_euler(np.array([0, 0, 3.1]), 0.0, 1.0, 0.1)[2] + 3.083) < 1e-3))
+            _msgs.append(("Euler, θ wrapped", abs(motion_euler(np.array([0, 0, 3.1]), 0.0, 1.0, 0.1)[2] + 3.083) < 1e-3))
+            _msgs.append(("exact, θ wrapped", abs(motion_exact(np.array([0, 0, 3.1]), 0.1, 1.0, 0.1)[2] + 3.083) < 1e-3))
+            _p = np.array([1.0, 2.0, 0.5])
+            motion_euler(_p, 1.0, 0.3, 0.5)
+            motion_exact(_p, 1.0, 0.3, 0.5)
+            _msgs.append(("input pose not modified", np.array_equal(_p, [1.0, 2.0, 0.5])))
         except Exception as _e:
             return f"⏳ **CHECK:** not implemented yet ({type(_e).__name__})."
         return "<br>".join(f"{'✅' if _ok else '❌'} {_n}" for _n, _ok in _msgs)
@@ -368,9 +390,13 @@ def _(np):
         _u = (0.0, 0.0)
         _out = [[_t, *_x]]
         _k = 0
+        # Use a common, ground-truth-supported endpoint at every subsampling rate.
+        _t_end = min(run["t0"] + run["duration_s"], run["gt"][-1, 0])
         for _e in run["events"]:
             if _e[1] != 0:
                 continue
+            if _e[0] > _t_end:
+                break
             _k += 1
             if (_k - 1) % subsample:
                 continue
@@ -382,6 +408,11 @@ def _(np):
                 _t = _e[0]
                 _out.append([_t, *_x])
             _u = (_e[2], _e[3])
+        if _t_end > _t:
+            _x = model(_x, _u[0], _u[1], _t_end - _t)
+            if _x is None:
+                return None
+            _out.append([_t_end, *_x])
         return np.array(_out)
 
     return (dead_reckoning,)
@@ -433,7 +464,7 @@ def _(dr_euler, dr_exact, evaluate, mo, np, pd, position_errors, run):
             _ok = abs(np.sqrt(np.mean(_e**2)) - _ref["ATE (m)"]) < 1e-6 and abs(_e[-1] - _ref["FTE (m)"]) < 1e-6
             _chk = f"{'✅' if _ok else '❌'} **CHECK:** your ATE/FTE {'match' if _ok else 'do NOT match'} the reference evaluation."
         _tab = pd.DataFrame([{"model": "Euler", **evaluate(dr_euler, run["gt"])}, {"model": "exact", **evaluate(dr_exact, run["gt"])}]).round(3)
-        _out = mo.vstack([mo.md(_chk), _tab, mo.md(f"Max. distance between Euler and exact trajectories: **{np.abs(dr_euler[:, 1:3] - dr_exact[:, 1:3]).max():.4f} m**")])
+        _out = mo.vstack([mo.md(_chk), _tab, mo.md(f"Max. distance between Euler and exact trajectories: **{np.linalg.norm(dr_euler[:, 1:3] - dr_exact[:, 1:3], axis=1).max():.4f} m**")])
     _out
     return
 
@@ -466,7 +497,7 @@ def _(dead_reckoning, evaluate, mo, motion_euler, motion_exact, np, pd, run, sub
         _dt = np.diff(run["odom"][:: sub_sl.value, 0]).mean()
         _out = mo.vstack(
             [
-                mo.md(f"k = {sub_sl.value} → mean Δt = {_dt:.3f} s · max. |Euler − exact| = **{np.abs(_a[:, 1:3] - _b[:, 1:3]).max():.3f} m**"),
+                mo.md(f"k = {sub_sl.value} → mean Δt = {_dt:.3f} s · max. distance between Euler and exact = **{np.linalg.norm(_a[:, 1:3] - _b[:, 1:3], axis=1).max():.3f} m**"),
                 pd.DataFrame([{"model": "Euler", **evaluate(_a, run["gt"])}, {"model": "exact", **evaluate(_b, run["gt"])}]).round(3),
             ]
         )
@@ -533,14 +564,16 @@ def _(dataset_dd, dead_reckoning, duration_sl, evaluate, gen_btn, load_run, mo, 
 
 @app.cell(hide_code=True)
 def _(go, make_subplots, mo, np, run):
-    # PROVIDED — commands vs. velocities derived from ground truth (0.5 s windows)
+    # PROVIDED — commands vs. approximate signed velocities derived from ground truth (0.5 s windows)
     _gt = run["gt"]
     _T = np.arange(_gt[0, 0] + 1, _gt[-1, 0] - 1, 0.5)
     _x = np.interp(_T, _gt[:, 0], _gt[:, 1])
     _y = np.interp(_T, _gt[:, 0], _gt[:, 2])
     _th = np.interp(_T, _gt[:, 0], np.unwrap(_gt[:, 3]))
     _tm = _T[:-1] + 0.25
-    _vg = np.hypot(np.diff(_x), np.diff(_y)) / 0.5
+    # Project world-frame displacement onto the robot heading, retaining sign.
+    _th_mid = (_th[:-1] + _th[1:]) / 2
+    _vg = (np.diff(_x) * np.cos(_th_mid) + np.diff(_y) * np.sin(_th_mid)) / 0.5
     _wg = np.diff(_th) / 0.5
     # window averages of the commands (zero-order hold), not point samples
     _od = run["odom"]
@@ -558,7 +591,7 @@ def _(go, make_subplots, mo, np, run):
     mo.vstack(
         [
             mo.ui.plotly(_fig),
-            mo.md(f"Mean (command − ground truth): v = **{np.mean(_vc - _vg) * 1000:.1f} mm/s**, ω = **{np.degrees(np.mean(_wc - _wg)):.3f} °/s** over {_t[-1]:.0f} s."),
+            mo.md(f"Mean (command − estimated ground truth): v = **{np.mean(_vc - _vg) * 1000:.1f} mm/s**, ω = **{np.degrees(np.mean(_wc - _wg)):.3f} °/s** over {_t[-1]:.0f} s."),
         ]
     )
     return
