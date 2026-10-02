@@ -1,213 +1,88 @@
-# MUSI Lab Session 1: Introduction and Basics
+# MUSI Labs — L1: Motion Models and Dead Reckoning
 
-Educational environment for learning mobile robot localization algorithms using the MRCLAM dataset.
+Class exercise for **11765 · Navigation and Environment Modelling in Mobile Robotics (MUSI)**.
 
-## Quick Start
+In this formative (ungraded) exercise, you will explore the [UTIAS MRCLAM dataset](http://asrl.utias.utoronto.ca/datasets/mrclam/), implement two velocity motion models, measure dead-reckoning drift, and compare robots and datasets. **Keep your completed notebook:** you will reuse your functions in E1.
 
-### 1. Install UV (Package Manager)
+## 1. Before you start: explore MRCLAM
+
+Visit the [official MRCLAM dataset website](http://asrl.utias.utoronto.ca/datasets/mrclam/) before opening the notebook. Identify the robot odometry commands, range/bearing landmark measurements, ground truth, and landmark map. Consider which information is available to a robot during operation and which is provided only for evaluation.
+
+## 2. Install prerequisites
+
+Install [Git](https://git-scm.com/downloads/win) and [uv](https://docs.astral.sh/uv/getting-started/installation/). You can work from **Git Bash**, **PowerShell**, or a Linux/macOS terminal.
+
+**Windows PowerShell:**
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Git Bash / Linux / macOS:**
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env
 ```
 
-### 2. Clone Repository
+Open a new terminal, then confirm that `uv --version` works. See the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) if the command is not found.
+
+## 3. Clone the repository and install dependencies
 
 ```bash
-git clone https://github.com/Caterina1996/MUSI-lab-session-1.git
-cd MUSI-lab-session-1
-```
-
-### 3. Install Dependencies
-
-```bash
+git clone https://github.com/Caterina1996/MUSI-labs.git
+cd MUSI-labs
 uv python install 3.10
-uv python pin 3.10
 uv sync
-
 ```
 
-This command creates a virtual environment and installs all required packages (7 dependencies).
+The `uv sync` step assumes this repository includes its `pyproject.toml` with the notebook dependencies (`marimo`, `numpy`, `pandas`, and `plotly`). If your copy does not include this configuration, ask your instructor for the project files.
 
-### 4. Launch Session 1 Notebook
+## 4. Check the dataset files
+
+The notebook looks for `data/MRCLAM_Dataset1/` (also one or two directories above the working directory). It requires the relevant `Barcodes.dat`, `Landmark_Groundtruth.dat`, and per-robot odometry, measurement, and ground-truth files.
+
+Check that the datasets are present before launching. The notebook **always** uses datasets 1 and 3 for its initial comparison, even when another dataset is selected. The dataset selector offers datasets 1–9; all selected datasets must be downloaded and placed under `data/` if they are not distributed with the repository. Do not assume `git pull` downloads datasets hosted elsewhere.
+
+## 5. Open and complete the notebook
+
+Run the following **from the repository root** (the directory containing `data/`):
 
 ```bash
-uv run marimo edit notebooks/session1_intro_and_basics.py
+uv run marimo edit L1_dead_reckoning.py
 ```
 
-Your browser will open with the interactive notebook at `http://localhost:2718`.
+If your instructor places the notebook in `notebooks/` instead of the repository root, use `uv run marimo edit notebooks/L1_dead_reckoning.py`.
 
-## Updating the Repository
+Work through the notebook in order:
 
-If you've already cloned the repository and need to get the latest updates:
+1. **Explore MRCLAM:** inspect the data and calculate odometry and ground-truth sampling frequencies.
+2. **Implement the motion models:** complete `wrap_angle`, `motion_euler`, and `motion_exact`.
+3. **Study dead-reckoning drift:** implement `position_errors`; compare Euler and exact integration and experiment with temporal subsampling.
+4. **Test generalisation:** compare the five robots and examine differences between velocity commands and motion estimated from ground truth.
+
+Complete each **🛠 TODO** code cell and **✍️ ANSWER** question, using numerical results from your own experiments. Use the **✅ CHECK** messages to check your implementations. The notebook deliberately starts with unfinished functions.
+
+## Updating your copy
+
+From inside `MUSI-labs`:
 
 ```bash
-# Navigate to your repository
-cd MUSI-lab-session-1
-
-# Pull the latest changes
 git pull
+uv sync
 ```
 
-If you have local changes and encounter conflicts:
-
-```bash
-# Stash your local changes
-git stash
-
-# Pull the latest updates
-git pull
-
-# Reapply your local changes
-git stash pop
-```
-
-## Session 1 Contents
-
-### Part 1: Dataset Exploration
-- Load and visualize MRCLAM datasets (1-9 available)
-- Understand robot odometry and measurements
-- Explore ground truth data and landmark observations
-- Compare dataset characteristics across scenarios
-
-### Part 2: Dead Reckoning Baseline
-- Implement basic motion model integration
-- Analyze error accumulation over time
-- Compute Absolute Trajectory Error (ATE)
-
-### Part 3: Extended Kalman Filter (EKF)
-- Understand Bayesian localization framework
-- Implement EKF prediction and update steps
-- Tune noise parameters (R and Q matrices)
-- Compare EKF vs Dead Reckoning performance
-
-### Part 4: Cross-Dataset Benchmarking
-- Automated experiments across multiple robots and datasets
-- Statistical analysis of algorithm performance
-- Interactive visualization with Plotly and Seaborn
-
-## Repository Structure
-
-```
-MUSI-lab-session-1/
-├── musi_labs/                      # Algorithm implementations
-│   ├── data/                       # MRCLAM dataset reader
-│   ├── localization/               # Dead Reckoning, EKF, Particle Filter
-│   ├── slam/                       # EKF-SLAM (Session 1 introduction)
-│   ├── utils/                      # Metrics and data utilities
-│   └── visualization/              # Marimo plotting helpers
-├── notebooks/                      # Interactive Marimo sessions
-│   └── session1_intro_and_basics.py
-├── data/                           # MRCLAM Datasets 1-9
-│   ├── MRCLAM_Dataset1/
-│   ├── MRCLAM_Dataset2/
-│   └── ...
-├── pyproject.toml                  # Project configuration
-└── README.md                       # This file
-```
-
-## Learning Path
-
-1. **Start with the notebook**: Open `session1_intro_and_basics.py` in Marimo
-2. **Run cells interactively**: Execute cells sequentially, observe outputs
-3. **Experiment with parameters**: Use sliders to tune EKF noise matrices (R, Q)
-4. **Compare algorithms**: Dead Reckoning to EKF to understand improvements
-5. **Visualize results**: Interactive Plotly plots with hover details and zoom
-6. **Try different datasets**: Use the dataset selector to explore different scenarios
+If you have edited the notebook, **save or commit your work before pulling**. Avoid blindly stashing and reapplying changes if you are unfamiliar with resolving Git conflicts.
 
 ## Troubleshooting
 
-### UV not found after installation
-Restart your terminal. If the issue persists, check the UV installation documentation: https://docs.astral.sh/uv/
-
-### Marimo notebook won't open
-```bash
-# Check if Marimo is installed
-uv run marimo --version
-
-# Try explicit browser opening
-uv run marimo edit notebooks/session1_intro_and_basics.py --headless
-```
-
-### Import errors
-```bash
-# Ensure dependencies are synced
-cd MUSI-lab-session-1
-uv sync
-
-# Verify imports work
-uv run python -c "from musi_labs.data.reader import Reader; print('OK')"
-```
-
-### Dataset not found
-```bash
-# Verify dataset exists
-ls data/MRCLAM_Dataset1/
-
-# If missing, check git clone completed successfully
-git pull
-```
-
-## Available Datasets
-
-This repository includes **all 9 MRCLAM datasets** (~500MB total):
-
-- **MRCLAM_Dataset1**: Basic trajectory with good landmark coverage
-- **MRCLAM_Dataset2**: Loop closure scenario
-- **MRCLAM_Dataset3**: Longer trajectory with varied motion
-- **MRCLAM_Dataset4**: Multi-robot coordination scenario
-- **MRCLAM_Dataset5-9**: Additional scenarios with varying complexity
-
-Each dataset includes data for 5 robots with:
-- Odometry measurements (velocity commands)
-- Landmark observations (range and bearing)
-- Ground truth poses from motion capture
-- Landmark positions
-
-## Technical Details
-
-### Dependencies (7 core packages)
-- **NumPy** - Numerical computing
-- **SciPy** - Scientific algorithms
-- **pandas** - Data manipulation and time series
-- **Matplotlib** - Static plotting
-- **Plotly** - Interactive visualizations
-- **Seaborn** - Statistical plots
-- **Marimo** - Reactive notebook environment
-
-### MRCLAM Dataset Details
-- **Environment**: 15m x 8m indoor space
-- **Robots**: 5 iRobot Create platforms with monocular cameras
-- **Landmarks**: 15 cylindrical tubes with unique barcodes
-- **Frequency**: Odometry at ~67Hz, Ground truth at 100Hz
-- **Accuracy**: Ground truth accurate to 1e-3 meters (Vicon system)
-
-### Algorithms Implemented
-- **Dead Reckoning**: Pure odometry integration baseline
-- **Extended Kalman Filter**: Gaussian belief localization with landmark fusion
-- **Metrics**: Absolute Trajectory Error (ATE) with timestamp alignment
-
-## Next Steps
-
-After completing Session 1, continue to **Session 2: Advanced Localization and SLAM** covering:
-- Particle Filter implementation
-- Multi-algorithm benchmarking
-- EKF-SLAM and FastSLAM introduction
-- Loop closure detection
-
-## Support
-
-For questions or issues:
-1. Check this README's Troubleshooting section
-2. Review Marimo documentation: https://docs.marimo.io
-3. Contact course instructor
-
-## License
-
-Educational use only. Dataset credit: University of Toronto ASRL.
+- **`uv` not found:** restart the terminal and follow the [uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+- **Marimo does not start:** run `uv sync` and `uv run marimo --version`. Check that Marimo is declared in `pyproject.toml`.
+- **Dataset not found:** launch from the repository root and verify `data/MRCLAM_Dataset1/` and `data/MRCLAM_Dataset3/` contain the required files.
+- **A CHECK says “not implemented yet”:** complete the earlier TODO functions first; later calculations depend on them.
 
 ## References
 
-- MRCLAM Dataset: http://asrl.utias.utoronto.ca/datasets/mrclam/
-- Probabilistic Robotics (Thrun, Burgard, Fox)
-- Marimo Documentation: https://docs.marimo.io
+- [UTIAS MRCLAM dataset](http://asrl.utias.utoronto.ca/datasets/mrclam/)
+- Thrun, Burgard & Fox, *Probabilistic Robotics*, §5.3.
+- Siegwart & Nourbakhsh, *Introduction to Autonomous Mobile Robots*, Ch. 5.
+- [Marimo documentation](https://docs.marimo.io/)
